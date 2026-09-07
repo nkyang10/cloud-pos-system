@@ -9,7 +9,11 @@ Run the full suite from the repo root:
 
     python -m unittest discover -s tests -v
 
-This is the canonical test command for the driver / CI to re-run.
+If `python` is not on your PATH (some distros only ship `python3`), use:
+
+    python3 -m unittest discover -s tests -v
+
+Either is the canonical test command for the driver / CI to re-run.
 
 ## What is covered
 
@@ -27,7 +31,12 @@ This is the canonical test command for the driver / CI to re-run.
 
 ## Status
 
-The suite is green. Verified with Python 3.12:
+The suite is green. Verified with Python 3.12 (`python3` — `python` is not on
+PATH in this environment; either invocation works):
 
-    Ran 15 tests in 0.048s
+    python3 -m unittest discover -s tests -v
+    Ran 15 tests in 0.033s
     OK
+
+Live smoke check also confirmed: `GET /` → 200, `POST /items` (valid) → 303 →
+item listed with formatted price/quantity.
