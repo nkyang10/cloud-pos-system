@@ -18,3 +18,5 @@ with the `PORT` environment variable:
 ## Test
 
     python -m unittest discover -s tests -v
+
+(If `python` is unavailable, substitute `python3`.)
