@@ -1,0 +1,1 @@
+"""POS package: stock-tracking backend for the tiny POS system."""
