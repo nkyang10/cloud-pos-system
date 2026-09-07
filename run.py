@@ -1,30 +1,53 @@
 """Entry point for the tiny POS web app.
 
-Starts the stock-items server on http://127.0.0.1:8000 by default.
-Override the port with the ``PORT`` environment variable::
+Starts the shared cloud station server on 0.0.0.0:8000 by default so any
+station on the shop network can reach it. Override the port with the ``PORT``
+environment variable::
 
     PORT=9000 python run.py
 """
 
 import os
+import socket
 from http.server import ThreadingHTTPServer
 
 from pos.server import POSHandler
 
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 DEFAULT_PORT = 8000
 
 
 def main():
     port = _parse_port(os.environ.get("PORT"))
     server = ThreadingHTTPServer((HOST, port), POSHandler)
-    print("Serving POS stock items at http://{}:{}  (Ctrl+C to stop)".format(HOST, port))
+    print(
+        "Serving POS for the shop network at http://{}:{}  (Ctrl+C to stop)".format(
+            _reachable_host(), port
+        )
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
         server.server_close()
+
+
+def _reachable_host():
+    """Pick an address other stations can use to reach this server.
+
+    ``0.0.0.0`` is the bind address, not a reachable host. A throwaway UDP
+    ``connect`` learns the machine's LAN IP without sending any packets;
+    fall back to the bind host if no route exists (offline box).
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError:
+        return HOST
+    finally:
+        sock.close()
 
 
 def _parse_port(raw):
