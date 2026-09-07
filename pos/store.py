@@ -1,14 +1,27 @@
-"""SQLite repository for stock items.
+"""SQLite repository for stock items and the stock-movement ledger.
 
 Part of the tiny POS system. Items are stored in a SQLite database with
-prices in integer cents to avoid float rounding. The caller owns the
-transaction: ``add_item`` performs the INSERT without committing so the
-server layer can commit or roll back as needed.
+prices in integer cents to avoid float rounding. Callers own the transaction
+for ``add_item`` (it performs the INSERT without committing so the server
+layer can commit or roll back as needed); ``adjust_quantity`` manages its
+own transaction with ``with conn:`` and is atomic regardless of the caller.
 """
 
 import sqlite3
 
 DEFAULT_DB_PATH = "stock.db"
+
+# Per-connection PRAGMAs applied in ``init_db`` before the DDL block. WAL
+# journaling plus a busy timeout keep concurrent read/write requests from
+# failing with ``database is locked``; foreign keys are enforced so ledger
+# rows cannot dangle; ``synchronous=NORMAL`` is the WAL-recommended durability
+# trade-off.
+_PRAGMAS = (
+    "PRAGMA journal_mode=WAL",
+    "PRAGMA foreign_keys=ON",
+    "PRAGMA busy_timeout=5000",
+    "PRAGMA synchronous=NORMAL",
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -17,16 +30,39 @@ CREATE TABLE IF NOT EXISTS items (
     price_cents  INTEGER NOT NULL CHECK (price_cents >= 0),
     quantity     INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0)
 );
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id       INTEGER NOT NULL REFERENCES items(id),
+    delta         INTEGER NOT NULL CHECK (delta != 0),
+    movement_type TEXT    NOT NULL CHECK (movement_type IN ('in', 'out')),
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_movements_item ON stock_movements(item_id);
 """
+
+
+class ItemNotFoundError(ValueError):
+    """Raised when an operation references an item id that does not exist.
+
+    A ``ValueError`` subclass so existing ``except ValueError`` callers keep
+    working, while the HTTP layer can map it to a 404 without sniffing the
+    message.
+    """
 
 
 def init_db(db_path=DEFAULT_DB_PATH):
     """Open (creating if needed) the database and ensure the schema exists.
 
-    Returns a connection with ``row_factory`` set to ``sqlite3.Row``.
+    Applies the per-connection PRAGMAs (WAL journaling, foreign keys, busy
+    timeout, ``synchronous=NORMAL``) before the DDL block. Returns a
+    connection with ``row_factory`` set to ``sqlite3.Row``.
     """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    for pragma in _PRAGMAS:
+        conn.execute(pragma).fetchall()
     conn.executescript(_SCHEMA)
     conn.commit()
     return conn
@@ -72,6 +108,87 @@ def add_item(conn, name, price_cents, quantity=0):
         # (COLLATE NOCASE) is the source of truth.
         raise ValueError("An item with this name already exists.") from exc
     return cursor.lastrowid
+
+
+def adjust_quantity(conn, item_id, delta, movement_type):
+    """Record a stock movement and update the item's on-hand quantity.
+
+    ``delta`` is signed — positive for ``movement_type='in'``, negative for
+    ``'out'`` — and its sign must match ``movement_type``.
+
+    Validation (raises on any failure, in order):
+      - ``movement_type`` must be ``'in'`` or ``'out'`` (``ValueError``).
+      - ``delta`` must be a non-zero ``int`` (``bool`` excluded;
+        ``ValueError``).
+      - the sign of ``delta`` must match ``movement_type`` (``ValueError``).
+      - the item must exist (``ItemNotFoundError``).
+      - the resulting on-hand must stay non-negative (``ValueError``).
+
+    On success the movement row is inserted and ``items.quantity`` is updated
+    inside a single ``with conn:`` transaction (auto-commit on success,
+    auto-rollback on failure), so the ledger and the display cache never
+    diverge. Returns the new on-hand quantity as an int.
+    """
+    if movement_type not in ("in", "out"):
+        raise ValueError(
+            "movement_type must be 'in' or 'out', got %r." % (movement_type,)
+        )
+    if isinstance(delta, bool) or not isinstance(delta, int):
+        raise ValueError("delta must be a non-zero integer.")
+    if delta == 0:
+        raise ValueError("delta must be a non-zero integer.")
+    if (movement_type == "in" and delta < 0) or (
+        movement_type == "out" and delta > 0
+    ):
+        raise ValueError(
+            "delta must be %s for movement_type %r."
+            % ("positive" if movement_type == "in" else "negative", movement_type)
+        )
+
+    row = conn.execute(
+        "SELECT quantity FROM items WHERE id = ?", (item_id,)
+    ).fetchone()
+    if row is None:
+        raise ItemNotFoundError("No item with id %s." % item_id)
+
+    current = row["quantity"]
+    if current + delta < 0:
+        raise ValueError(
+            "Adjustment would leave the on-hand quantity negative "
+            "(current: %s, delta: %s)." % (current, delta)
+        )
+
+    with conn:
+        conn.execute(
+            "UPDATE items SET quantity = quantity + ? WHERE id = ?",
+            (delta, item_id),
+        )
+        conn.execute(
+            "INSERT INTO stock_movements (item_id, delta, movement_type) "
+            "VALUES (?, ?, ?)",
+            (item_id, delta, movement_type),
+        )
+    return current + delta
+
+
+def list_movements(conn, item_id=None):
+    """Return ledger rows as ``{id, item_id, delta, movement_type, created_at}``.
+
+    Rows are ordered by ``id`` ascending; pass ``item_id`` to list only the
+    movements of that item.
+    """
+    if item_id is None:
+        rows = conn.execute(
+            "SELECT id, item_id, delta, movement_type, created_at "
+            "FROM stock_movements ORDER BY id"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, item_id, delta, movement_type, created_at "
+            "FROM stock_movements WHERE item_id = ? ORDER BY id",
+            (item_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def _clean_name(name):

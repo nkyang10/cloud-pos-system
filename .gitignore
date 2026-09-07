@@ -1,3 +1,6 @@
 # SQLite database created at runtime
 stock.db
+# WAL journal sidecar files created alongside stock.db
+stock.db-wal
+stock.db-shm
 __pycache__/
