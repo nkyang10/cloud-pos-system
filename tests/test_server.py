@@ -123,6 +123,22 @@ class POSHandlerTestCase(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertLess(body.index("Apple"), body.index("Banana"))
 
+    def test_add_without_quantity_defaults_to_zero(self):
+        """An add that omits the quantity field stores a 0 quantity (design default)."""
+        status, headers, body = _send(
+            "POST", "/items",
+            {"name": "Tote Bag", "price": "20.00"},
+        )
+
+        self.assertEqual(status, 303)
+        self.assertEqual(headers.get("location"), "/")
+        self.assertEqual(body, "")
+
+        status, _headers, body = _send("GET", "/")
+        self.assertEqual(status, 200)
+        self.assertIn("Tote Bag", body)
+        self.assertIn(">0<", body)
+
     def test_invalid_submissions_are_rejected_with_400(self):
         """Blank/duplicate name, bad price and bad quantity get a 400 and insert nothing."""
         ok, _h, _b = _send(
@@ -134,12 +150,16 @@ class POSHandlerTestCase(unittest.TestCase):
         invalid_forms = [
             # Blank name.
             {"name": "   ", "price": "1.00", "quantity": "1"},
+            # Missing name field entirely (treated as blank).
+            {"price": "1.00", "quantity": "1"},
             # Duplicate name (case-insensitive).
             {"name": "milk", "price": "9.99", "quantity": "1"},
             # Negative price.
             {"name": "Muffin", "price": "-0.50", "quantity": "1"},
             # Non-numeric price.
             {"name": "Muffin", "price": "abc", "quantity": "1"},
+            # Price with more than two decimal places.
+            {"name": "Muffin", "price": "3.505", "quantity": "1"},
             # Negative quantity.
             {"name": "Muffin", "price": "1.00", "quantity": "-2"},
             # Non-integer quantity.

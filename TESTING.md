@@ -1,0 +1,33 @@
+# Testing
+
+## Runner
+
+The project uses the Python standard-library `unittest` runner (no third-party
+dependencies, no `pip install` needed).
+
+Run the full suite from the repo root:
+
+    python -m unittest discover -s tests -v
+
+This is the canonical test command for the driver / CI to re-run.
+
+## What is covered
+
+- `tests/test_store.py` — unit tests for the SQLite store: empty list, add →
+  list shows item, default quantity, insertion order, validation rejection
+  (blank/duplicate name, negative price, negative/non-integer quantity), and
+  persistence across a reopen.
+- `tests/test_server.py` — end-to-end tests against the real `POSHandler`:
+  empty-state page, add → redirect (303) → item listed with formatted price and
+  quantity, insertion order, omission-of-quantity defaulting to 0, and 400
+  rejection (blank/missing name, duplicate, negative/non-numeric/>2-decimal
+  price, negative/non-integer quantity) with no row inserted.
+- `tests/test_run.py` — `run.py` port resolution (PRD AC1): default 8000, valid
+  `PORT` override, and rejection of non-numeric / out-of-range ports.
+
+## Status
+
+The suite is green. Verified with Python 3.12:
+
+    Ran 15 tests in 0.048s
+    OK
