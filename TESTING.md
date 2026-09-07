@@ -28,6 +28,19 @@ Either is the canonical test command for the driver / CI to re-run.
   price, negative/non-integer quantity) with no row inserted.
 - `tests/test_run.py` — `run.py` port resolution (PRD AC1): default 8000, valid
   `PORT` override, and rejection of non-numeric / out-of-range ports.
+- `tests/test_movements.py` — store-level tests for the stock-movement ledger
+  and `adjust_quantity`: in/out happy path (movement row inserted, returned and
+  stored new quantity, `list_movements` ordering and item filter), the
+  `quantity == SUM(delta)` invariant (AC5), rejections (unknown item →
+  `ItemNotFoundError`, net-negative → `ValueError` with no row and unchanged
+  quantity, sign/type mismatch, zero/non-int delta, bad `movement_type`), and
+  persistence across a reopen.
+- `tests/test_adjust_http.py` — end-to-end tests of `POST /items/{id}/adjust`
+  through the real handler: valid in/out → `303` → updated quantity on `GET /`
+  (and the per-row Adjust form), net-negative → `400` with quantity unchanged
+  and no movement row, unknown item id → `404`, bad/missing `delta` or
+  `movement_type` → `400`, unknown paths → `404`, and persistence across a
+  reopen.
 
 ## Status
 
@@ -35,7 +48,7 @@ The suite is green. Verified with Python 3.12 (`python3` — `python` is not on
 PATH in this environment; either invocation works):
 
     python3 -m unittest discover -s tests -v
-    Ran 15 tests in 0.033s
+    Ran 34 tests in 0.124s
     OK
 
 Live smoke check also confirmed: `GET /` → 200, `POST /items` (valid) → 303 →

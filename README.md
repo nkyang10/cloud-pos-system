@@ -1,10 +1,12 @@
 # cloud-pos-system
 
-A tiny POS (point-of-sale) system for tracking stock items: view the catalog
-and add new items from a single server-rendered HTML page.
+A tiny POS (point-of-sale) system for tracking stock items: view the catalog,
+add new items, and adjust stock quantities in/out (each adjustment recorded on
+a movement ledger) from a single server-rendered HTML page.
 
 - Python 3.8+, standard library only — no `pip install`.
-- Items persist in a local SQLite file (`stock.db`).
+- Items and the stock-movement ledger persist in a local SQLite file
+  (`stock.db`).
 
 ## Run
 
