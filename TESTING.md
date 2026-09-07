@@ -44,11 +44,14 @@ Either is the canonical test command for the driver / CI to re-run.
 
 ## Status
 
-The suite is green. Verified with Python 3.12 (`python3` — `python` is not on
-PATH in this environment; either invocation works):
+The suite is green. Re-verified after the final feature merge + a small QA
+cleanup (removed duplicate `_PRAGMAS` / `ItemNotFoundError` definitions that a
+merge resolution had left in `pos/store.py`; behavior unchanged). Verified with
+Python 3.12 (`python3` — `python` is not on PATH in this environment; either
+invocation works):
 
     python3 -m unittest discover -s tests -v
-    Ran 34 tests in 0.124s
+    Ran 34 tests in 0.101s
     OK
 
 Live smoke check also confirmed: `GET /` → 200, `POST /items` (valid) → 303 →

@@ -43,17 +43,6 @@ CREATE INDEX IF NOT EXISTS idx_movements_item
     ON stock_movements(item_id);
 """
 
-# Per-connection PRAGMAs applied on every connection before any DDL/DML. WAL
-# enables concurrent readers with a single writer; busy_timeout turns transient
-# "database is locked" errors into waits; foreign_keys enforces the FK on
-# stock_movements; synchronous=NORMAL is the WAL-recommended durability setting.
-_PRAGMAS = (
-    "PRAGMA journal_mode=WAL",
-    "PRAGMA foreign_keys=ON",
-    "PRAGMA busy_timeout=5000",
-    "PRAGMA synchronous=NORMAL",
-)
-
 
 class ItemNotFoundError(ValueError):
     """Raised when an operation references an item id that does not exist.
@@ -120,14 +109,6 @@ def add_item(conn, name, price_cents, quantity=0):
         # (COLLATE NOCASE) is the source of truth.
         raise ValueError("An item with this name already exists.") from exc
     return cursor.lastrowid
-
-
-class ItemNotFoundError(ValueError):
-    """Raised by :func:`adjust_quantity` when the item id does not exist.
-
-    A ``ValueError`` subclass so the HTTP layer can map it to a 404 without
-    sniffing message text.
-    """
 
 
 def adjust_quantity(conn, item_id, delta, movement_type):
