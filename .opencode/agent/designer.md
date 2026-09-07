@@ -24,6 +24,10 @@ Produce `ENGINE_PLAN/<run-id>/NEXT-CYCLE.md`:
   user requirement; max 5 total. Prefer improvements that move the product measurably closer to the
   requirement (not gold-plating). Tag each with `[research]` if it comes from the researcher's findings.
 
+Also maintain `ENGINE_STATE/TARGETS.md`:
+- read it first; for every target that is now genuinely, fully met by what shipped, flip its line to
+  `- [x] ...`; leave unmet targets as `- [ ] ...`. Be honest — do not mark partial work as met.
+
 Rules:
 - No invented work: every proposal must trace to the requirement, the review, or a research finding.
 - If nothing meaningful is left, say so and propose only "user confirms requirement / next feature" —

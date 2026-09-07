@@ -16,7 +16,9 @@ You receive a hand-off (a "piece of work" + a target feature/workflow). Produce,
 - `ENGINE_PLAN/<run-id>/PRD.md` — the problem, the MUST-HAVE happy path, non-goals, acceptance criteria.
 - `ENGINE_PLAN/<run-id>/design.md` — tech stack, file/module layout, data model, key APIs.
 - `ENGINE_PLAN/<run-id>/tasks.md` — an ordered list of the smallest tasks that deliver the happy path
-  (each task one bullet, imperative, ~1 commit each, max 5).
+  (each task one bullet, imperative, ~1 commit each, max 5). **Each task must touch a DISJOINT set of
+  files** (engineers run in parallel and their branches are later merged — overlapping files cause
+  conflicts). Say the files each task owns explicitly, e.g. `- implement sqlite store (pos/store.py only)`.
 
 Rules:
 - Match the existing repo conventions first (read README, package files, AGENTS.md, existing code).

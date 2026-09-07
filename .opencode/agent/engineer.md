@@ -22,5 +22,8 @@ Workflow:
 
 Rules:
 - One task = one small focused change. Do not implement the whole feature or refactor unrelated code.
+- **Only touch the files your task owns** (the plan states them). Never edit or refactor files another
+  task owns — other engineers are working on them in parallel and shared-file edits create merge
+  conflicts.
 - No network credentials, no generated secrets. Follow the repo's AGENTS.md.
 - If the design is wrong for this task, note it in a short comment/file and still deliver the smallest correct thing.
