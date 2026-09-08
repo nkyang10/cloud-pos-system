@@ -1,10 +1,17 @@
-"""Happy-path unit tests for pos.store (empty list -> add -> list shows item)."""
+"""Happy-path unit tests for pos.store (items + persisted sales)."""
 
 import os
 import tempfile
 import unittest
 
-from pos.store import add_item, init_db, list_items
+from pos.store import (
+    add_item,
+    checkout,
+    get_transaction,
+    init_db,
+    list_items,
+    list_transactions,
+)
 
 
 class StoreTestCase(unittest.TestCase):
@@ -105,6 +112,32 @@ class StoreTestCase(unittest.TestCase):
                     "quantity": 3,
                 }],
             )
+        finally:
+            reopened.close()
+
+    def test_sales_persist_across_a_reopen_and_sequence_continues(self):
+        """Committed sales survive a reopen, and the next sale continues the
+        receipt sequence rather than restarting it."""
+        item_id = add_item(self.conn, "Cold Brew", price_cents=450, quantity=12)
+        self.conn.commit()
+        txn = checkout(self.conn, [{"item_id": item_id, "qty": 2}], "cash")
+        self.conn.close()
+
+        reopened = init_db(self.db_path)
+        try:
+            saved = get_transaction(reopened, txn["receipt_no"])
+            self.assertIsNotNone(saved)
+            self.assertEqual(saved["total_cents"], 900)
+            self.assertEqual(len(saved["lines"]), 1)
+            self.assertEqual(saved["lines"][0]["name"], "Cold Brew")
+            self.assertEqual(saved["lines"][0]["qty"], 2)
+
+            # The receipt sequence persists too: the next sale mints the
+            # following number, never a duplicate of the first.
+            second = checkout(reopened, [{"item_id": item_id, "qty": 1}], "card")
+            self.assertNotEqual(second["receipt_no"], txn["receipt_no"])
+            self.assertEqual(len(list_transactions(reopened)), 2)
+            self.assertEqual(list_items(reopened)[0]["quantity"], 9)  # 12 - 2 - 1
         finally:
             reopened.close()
 

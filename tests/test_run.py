@@ -1,8 +1,13 @@
-"""Unit tests for the run.py entry point's port resolution (PRD AC1)."""
+"""Unit tests for the run.py entry point (PRD AC1).
+
+Covers port resolution (``PORT`` env override, default 8000) and the shared
+cloud-station bind host: any station on the shop network must be able to
+reach the server, so it binds ``0.0.0.0`` rather than localhost.
+"""
 
 import unittest
 
-from run import DEFAULT_PORT, _parse_port
+from run import DEFAULT_PORT, HOST, _parse_port, _reachable_host
 
 
 class ParsePortTestCase(unittest.TestCase):
@@ -36,6 +41,21 @@ class ParsePortTestCase(unittest.TestCase):
             _parse_port("-1")
         with self.assertRaises(SystemExit):
             _parse_port("70000")
+
+
+class BindHostTestCase(unittest.TestCase):
+    """The server must be reachable from every station on the shop network."""
+
+    def test_server_binds_all_interfaces(self):
+        """AC1: the shared cloud station binds 0.0.0.0, not localhost."""
+        self.assertEqual(HOST, "0.0.0.0")
+        self.assertNotEqual(HOST, "127.0.0.1")
+
+    def test_startup_message_uses_a_reachable_host(self):
+        """The startup message prints a concrete host stations can reach."""
+        host = _reachable_host()
+        self.assertIsInstance(host, str)
+        self.assertTrue(host.strip())
 
 
 if __name__ == "__main__":
